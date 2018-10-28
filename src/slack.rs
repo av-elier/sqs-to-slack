@@ -6,9 +6,8 @@ use hyper_tls::HttpsConnector;
 
 use http::header::HeaderValue;
 
-use tokio::runtime::current_thread::Runtime;
-
 pub struct SlackSender<T> {
+    rt: tokio::runtime::Runtime,
     client: hyper::Client<T>,
     hook_uri: hyper::Uri,
 }
@@ -18,17 +17,22 @@ type Https = hyper_tls::HttpsConnector<hyper::client::HttpConnector>;
 pub type SlackSenderHttps = SlackSender<Https>;
 
 impl SlackSender<Https> {
-    pub fn new(hook_url: &str) -> Result<SlackSender<Https>, Box<Error>> {
+    pub fn new(
+        hook_url: &str,
+        rt: tokio::runtime::Runtime,
+    ) -> Result<SlackSender<Https>, Box<Error>> {
         let https = HttpsConnector::new(4).expect("TLS initialization failed");
         let client = Client::builder().build::<_, hyper::Body>(https);
         let uri: hyper::Uri = hook_url.parse()?;
+
         Ok(SlackSender {
+            rt,
             client: client,
             hook_uri: uri,
         })
     }
 
-    pub fn send(&self, msg: &str) -> Result<(), Box<Error>> {
+    pub fn send(&mut self, msg: &str) -> Result<(), Box<Error>> {
         let body_json = json!({
             "text": msg,
         });
@@ -53,9 +57,7 @@ impl SlackSender<Https> {
             }).map_err(|err| {
                 error!("Error: {}", err);
             });
-        let mut ctrt = Runtime::new().unwrap();
-        ctrt.spawn(res);
-        ctrt.run().unwrap();
+        self.rt.spawn(res);
         Ok(())
     }
 }

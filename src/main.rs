@@ -5,13 +5,17 @@ extern crate env_logger;
 extern crate http;
 extern crate hyper;
 extern crate hyper_tls;
+extern crate serde;
 #[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 extern crate rusoto_core;
 extern crate rusoto_sqs;
 
 mod slack;
 mod sqs;
+mod sqs_to_slack;
 
 use std::error::Error;
 
@@ -38,11 +42,6 @@ fn main_result() -> Result<(), Box<Error>> {
     let mut settings = config::Config::default();
     settings.merge(config::File::with_name("settings")).unwrap();
 
-    let sqs_queue_name = settings.get_str("sqs_queue_name")?;
-    let slack_url = settings.get_str("slack_hook_url")?;
-
-    loop {
-        let msg = sqs::read(&sqs_queue_name)?;
-        slack::send(&slack_url, &msg)?;
-    }
+    let connector: sqs_to_slack::SqsToSlack = settings.try_into().unwrap();
+    connector.run()
 }

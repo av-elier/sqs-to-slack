@@ -10,8 +10,9 @@ pub struct SqsToSlack {
 
 impl SqsToSlack {
     pub fn run(&self) -> Result<(), Box<Error>> {
+        let source = sqs::SqsSource::new(&self.sqs_queue_name)?;
         loop {
-            let msg = sqs::read(&self.sqs_queue_name)?;
+            let msg = source.read()?;
             slack::send(&self.slack_hook_url, &msg)?;
         }
     }

@@ -19,6 +19,7 @@ mod sqs;
 mod sqs_to_slack;
 
 use std::error::Error;
+use std::thread;
 
 fn main() {
     info!("started sqs-to-slack");
@@ -42,7 +43,19 @@ fn main_result() -> Result<(), Box<Error>> {
 
     let mut settings = config::Config::default();
     settings.merge(config::File::with_name("settings")).unwrap();
-
-    let connector: sqs_to_slack::SqsToSlack = settings.try_into().unwrap();
-    connector.run()
+    #[derive(Deserialize)]
+    struct Connectors {
+        connectors: Vec<sqs_to_slack::SqsToSlack>,
+    };
+    let connectors: Connectors = settings.try_into().unwrap();
+    let mut handles = Vec::with_capacity(connectors.connectors.len());
+    for connector in connectors.connectors {
+        handles.push(thread::spawn(move || {
+            connector.run().unwrap();
+        }));
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    Ok(())
 }

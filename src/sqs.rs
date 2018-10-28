@@ -24,7 +24,7 @@ impl SqsSource {
             queue_url: queue_url,
         })
     }
-    pub fn read(&self) -> Result<String, Box<Error>> {
+    pub fn read(&self) -> Result<Message, Box<Error>> {
         let mut req_recieve = ReceiveMessageRequest::default();
         req_recieve.queue_url = self.queue_url.to_string();
         req_recieve.max_number_of_messages = Some(1);
@@ -44,7 +44,15 @@ impl SqsSource {
 
             info!("recieved sqs message ({}) {:?}", self.queue_name, msg);
 
-            return Ok(format!("{:?}", msg));
+            return Ok(Message {
+                queue_name: self.queue_name.clone(),
+                sqs_msg: msg.clone(),
+            });
         }
     }
+}
+
+pub struct Message {
+    pub queue_name: String,
+    pub sqs_msg: rusoto_sqs::Message,
 }

@@ -1,10 +1,11 @@
 use std::error::Error;
 
+use http::header::HeaderValue;
 use hyper::rt::{Future, Stream};
 use hyper::{Body, Client, Method, Request};
 use hyper_tls::HttpsConnector;
 
-use http::header::HeaderValue;
+use sqs;
 
 pub struct SlackSender<T> {
     rt: tokio::runtime::Runtime,
@@ -32,12 +33,10 @@ impl SlackSender<Https> {
         })
     }
 
-    pub fn send(&mut self, msg: &str) -> Result<(), Box<Error>> {
-        let body_json = json!({
-            "text": msg,
-        });
+    pub fn send(&mut self, msg: &sqs::Message) -> Result<(), Box<Error>> {
+        let body = format_sqs_message(msg);
 
-        let mut req = Request::new(Body::from(body_json.to_string()));
+        let mut req = Request::new(Body::from(body));
         *req.method_mut() = Method::POST;
         *req.uri_mut() = self.hook_uri.clone();
         req.headers_mut().insert(
@@ -60,4 +59,22 @@ impl SlackSender<Https> {
         self.rt.spawn(res);
         Ok(())
     }
+}
+
+fn format_sqs_message(msg: &sqs::Message) -> String {
+    let sqs_msg = msg.sqs_msg.clone();
+    let msg_json = json!({
+        "text": format!("Got message from queue *{}*", msg.queue_name),
+        "attachments": [
+            {
+                "title": format!("Id {}", sqs_msg.clone().message_id.unwrap_or("_no id_".to_string())),
+                "text": format!("{:?}", sqs_msg.clone().attributes.unwrap_or(std::collections::HashMap::new())),
+            },
+            {
+                "title": "The message's contents",
+                "text": format!("```{}```", sqs_msg.clone().body.unwrap_or("_no body_".to_string())),
+            },
+        ],
+    });
+    msg_json.to_string()
 }

@@ -39,8 +39,6 @@ fn main() {
 }
 
 fn main_result() -> Result<(), Box<Error>> {
-    println!("Hello, world!");
-
     let mut settings = config::Config::default();
     settings.merge(config::File::with_name("settings")).unwrap();
     #[derive(Deserialize)]

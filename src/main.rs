@@ -12,6 +12,7 @@ extern crate serde_json;
 extern crate serde_derive;
 extern crate rusoto_core;
 extern crate rusoto_sqs;
+extern crate tokio;
 
 mod slack;
 mod sqs;

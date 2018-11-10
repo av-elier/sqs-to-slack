@@ -4,3 +4,6 @@
 connectors:
   - sqs_queue_name: "your-queue-name"
     slack_hook_url: "https://hooks.slack.com/services/123456789/QWERTYUIO/ASDFGHJKZXCVBNM1234567890"
+
+dns_worker_threads: 1
+tokio_core_threads: 2

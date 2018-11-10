@@ -39,22 +39,33 @@ fn main() {
 }
 
 #[derive(Deserialize)]
-struct Connectors {
+struct Settings {
     connectors: Vec<sqs_to_slack::SqsToSlack>,
+
+    dns_worker_threads: usize,
+    tokio_core_threads: usize,
 }
 
 fn main_result() -> Result<(), Box<Error>> {
-    let rt = sqs_to_slack::new_runtime();
-
     let mut settings = config::Config::default();
     settings.merge(config::File::with_name("settings")).unwrap();
-    let connectors: Connectors = settings.try_into().unwrap();
+    let sett: Settings = settings.try_into().unwrap();
 
-    let mut handles = Vec::with_capacity(connectors.connectors.len());
-    for connector in connectors.connectors {
+    let rt = tokio::runtime::Builder::new()
+        .core_threads(sett.tokio_core_threads)
+        .build()
+        .expect("tokio runtime initialization failed");
+
+    let https =
+        hyper_tls::HttpsConnector::new(sett.dns_worker_threads).expect("TLS initialization failed");
+    let client = hyper::Client::builder().build::<_, hyper::Body>(https);
+
+    let mut handles = Vec::with_capacity(sett.connectors.len());
+    for connector in sett.connectors {
         let executor = rt.executor();
+        let client = client.clone();
         handles.push(thread::spawn(move || {
-            connector.run(executor).unwrap();
+            connector.run(executor, client).unwrap();
         }));
     }
 

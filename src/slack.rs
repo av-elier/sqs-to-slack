@@ -8,7 +8,7 @@ use hyper_tls::HttpsConnector;
 use sqs;
 
 pub struct SlackSender<T> {
-    rt: tokio::runtime::Runtime,
+    executor: tokio::runtime::TaskExecutor,
     client: hyper::Client<T>,
     hook_uri: hyper::Uri,
 }
@@ -20,14 +20,14 @@ pub type SlackSenderHttps = SlackSender<Https>;
 impl SlackSender<Https> {
     pub fn new(
         hook_url: &str,
-        rt: tokio::runtime::Runtime,
+        executor: tokio::runtime::TaskExecutor,
     ) -> Result<SlackSender<Https>, Box<Error>> {
         let https = HttpsConnector::new(4).expect("TLS initialization failed");
         let client = Client::builder().build::<_, hyper::Body>(https);
         let uri: hyper::Uri = hook_url.parse()?;
 
         Ok(SlackSender {
-            rt,
+            executor,
             client: client,
             hook_uri: uri,
         })
@@ -56,7 +56,7 @@ impl SlackSender<Https> {
             }).map_err(|err| {
                 error!("Error: {}", err);
             });
-        self.rt.spawn(res);
+        self.executor.spawn(res);
         Ok(())
     }
 }

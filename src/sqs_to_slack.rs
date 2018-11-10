@@ -1,6 +1,7 @@
 use slack;
 use sqs;
 use std::error::Error;
+// use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct SqsToSlack {
@@ -9,10 +10,9 @@ pub struct SqsToSlack {
 }
 
 impl SqsToSlack {
-    pub fn run(&self) -> Result<(), Box<Error>> {
-        let rt = new_runtime();
+    pub fn run(&self, executor: tokio::runtime::TaskExecutor) -> Result<(), Box<Error>> {
         let source = sqs::SqsSource::new(&self.sqs_queue_name)?;
-        let mut sender = slack::SlackSenderHttps::new(&self.slack_hook_url, rt)?;
+        let mut sender = slack::SlackSenderHttps::new(&self.slack_hook_url, executor)?;
         loop {
             let msg = source.read()?;
             sender.send(&msg)?;
@@ -20,7 +20,7 @@ impl SqsToSlack {
     }
 }
 
-fn new_runtime() -> tokio::runtime::Runtime {
+pub fn new_runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new()
         .core_threads(2)
         .blocking_threads(2)

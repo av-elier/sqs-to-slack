@@ -38,22 +38,29 @@ fn main() {
     }
 }
 
+#[derive(Deserialize)]
+struct Connectors {
+    connectors: Vec<sqs_to_slack::SqsToSlack>,
+}
+
 fn main_result() -> Result<(), Box<Error>> {
+    let rt = sqs_to_slack::new_runtime();
+
     let mut settings = config::Config::default();
     settings.merge(config::File::with_name("settings")).unwrap();
-    #[derive(Deserialize)]
-    struct Connectors {
-        connectors: Vec<sqs_to_slack::SqsToSlack>,
-    };
     let connectors: Connectors = settings.try_into().unwrap();
+
     let mut handles = Vec::with_capacity(connectors.connectors.len());
     for connector in connectors.connectors {
+        let executor = rt.executor();
         handles.push(thread::spawn(move || {
-            connector.run().unwrap();
+            connector.run(executor).unwrap();
         }));
     }
+
     for handle in handles {
         handle.join().unwrap();
     }
+
     Ok(())
 }

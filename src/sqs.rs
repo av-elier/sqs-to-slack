@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use rusoto_core::Region;
-use rusoto_sqs::{GetQueueUrlRequest, ReceiveMessageRequest, Sqs, SqsClient};
+use rusoto_sqs::{DeleteMessageRequest, GetQueueUrlRequest, ReceiveMessageRequest, Sqs, SqsClient};
 use std::sync::Arc;
 
 pub struct SqsSource {
@@ -24,7 +24,8 @@ impl SqsSource {
             queue_url: queue_url,
         })
     }
-    pub fn read(&self) -> Result<Message, Box<Error>> {
+
+    pub fn read(&self, delete_on_read: bool) -> Result<Message, Box<Error>> {
         let mut req_recieve = ReceiveMessageRequest::default();
         req_recieve.queue_url = self.queue_url.to_string();
         req_recieve.max_number_of_messages = Some(1);
@@ -43,6 +44,16 @@ impl SqsSource {
             };
 
             info!("recieved sqs message ({}) {:?}", self.queue_name, msg);
+
+            // this is bad, we could delete a message before successfull sending it to slack.
+            if delete_on_read {
+                info!("will try to delete message");
+                let del = DeleteMessageRequest {
+                    queue_url: self.queue_url.to_string(),
+                    receipt_handle: msg.clone().receipt_handle.unwrap().clone(),
+                };
+                self.client.delete_message(del).sync()?;
+            }
 
             return Ok(Message {
                 queue_name: self.queue_name.clone(),

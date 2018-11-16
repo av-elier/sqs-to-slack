@@ -6,6 +6,7 @@ use std::error::Error;
 pub struct SqsToSlack {
     sqs_queue_name: String,
     slack_hook_url: String,
+    delete_msg: bool,
 }
 
 impl SqsToSlack {
@@ -19,7 +20,7 @@ impl SqsToSlack {
         let mut sender = slack::SlackSenderHttps::new(&self.slack_hook_url, executor, client)?;
 
         loop {
-            let msg = source.read()?;
+            let msg = source.read(self.delete_msg)?;
             sender.send(&msg)?;
         }
     }

@@ -1,7 +1,13 @@
 use std::error::Error;
 
+use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
-use rusoto_sqs::{DeleteMessageRequest, GetQueueUrlRequest, ReceiveMessageRequest, Sqs, SqsClient};
+use rusoto_credential::StaticProvider;
+use rusoto_sqs::{
+    DeleteMessageRequest, GetQueueUrlRequest, ListQueuesRequest, ReceiveMessageRequest, Sqs,
+    SqsClient,
+};
+use rusoto_sts::{GetSessionTokenRequest, Sts, StsClient};
 use std::sync::Arc;
 
 pub struct SqsSource {
@@ -12,12 +18,33 @@ pub struct SqsSource {
 
 impl SqsSource {
     pub fn new(queue_name: &str) -> Result<SqsSource, Box<Error>> {
-        let client = SqsClient::new(Region::UsEast2);
+        let token_client = StsClient::new(Region::UsEast2);
+        let token_resp = token_client
+            .get_session_token(GetSessionTokenRequest::default())
+            .sync()?;
+        info!("got token credentials are {:?}", token_resp);
+        let creds = token_resp.credentials.expect("failed to get aws token");
+        let dispatcher = HttpClient::new().expect("failed to create request dispatcher");
+        let credentials = StaticProvider::new(
+            creds.access_key_id,
+            creds.secret_access_key,
+            Some(creds.session_token),
+            None,
+        );
+
+        let client = SqsClient::new_with(dispatcher, credentials, Region::UsEast1);
+
+        info!("list sqs queues");
+        let queues = client.list_queues(ListQueuesRequest::default()).sync()?;
+        info!(
+            "see sqs queues: {:?}",
+            queues.queue_urls.expect("no queues available")
+        );
 
         let mut req_queue_url = GetQueueUrlRequest::default();
         req_queue_url.queue_name = queue_name.to_string();
         let queue_url_result = client.get_queue_url(req_queue_url).sync()?;
-        let queue_url = queue_url_result.queue_url.unwrap();
+        let queue_url = queue_url_result.queue_url.expect("failed to get queue url");
         Ok(SqsSource {
             client: Arc::new(client),
             queue_name: queue_name.to_string(),

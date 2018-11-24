@@ -11,7 +11,9 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate rusoto_core;
+extern crate rusoto_credential;
 extern crate rusoto_sqs;
+extern crate rusoto_sts;
 extern crate tokio;
 
 mod slack;
@@ -65,7 +67,9 @@ fn main_result() -> Result<(), Box<Error>> {
         let executor = rt.executor();
         let client = client.clone();
         handles.push(thread::spawn(move || {
-            connector.run(executor, client).unwrap();
+            connector
+                .run(executor, client)
+                .expect("failed to start sqs-rust connector");
         }));
     }
 
